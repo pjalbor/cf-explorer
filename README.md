@@ -4,22 +4,30 @@ An interactive terminal browser for Cloud Foundry. Navigate your orgs, spaces, a
 
 ## Usage
 
-Requires [jbang](https://www.jbang.dev/). The repo ships with a wrapper so you don't need jbang pre-installed.
+Requires [jbang](https://www.jbang.dev/).
 
-The fastest way to run is via the catalog alias:
+**Without cloning — zero install (Linux/macOS):**
 
 ```bash
-./jbang run cf-explorer@garodriguezlp/cf-explorer
+curl -Ls https://sh.jbang.dev | bash -s - run cf-explorer@garodriguezlp/cf-explorer
 ```
 
-Or, if you have cloned the repo:
+**Without cloning — zero install (Windows PowerShell):**
+
+```powershell
+iex "& { $(iwr -useb https://ps.jbang.dev) } run cf-explorer@garodriguezlp/cf-explorer"
+```
+
+**With jbang already installed:**
 
 ```bash
-# using the bundled jbang alias (recommended)
-./jbang cf-explorer
+jbang run cf-explorer@garodriguezlp/cf-explorer
+```
 
-# run the script directly
-./jbang CfExplorer.java
+**From a local clone:**
+
+```bash
+./jbang cf-explorer
 ```
 
 **Configuration** — pass flags or set environment variables:
@@ -52,15 +60,19 @@ You can also drop a `CfExplorer.properties` file next to the script and PicoCLI 
 
 ## Try it locally with WireMock
 
-Start a simulated CF API (requires jbang):
+Start a simulated CF API:
 
 ```bash
+jbang run mock-server@garodriguezlp/cf-explorer
+# or, from a local clone:
 ./jbang mock-server
 ```
 
 The `mock-server` alias starts the WireMock stub server defined in `wiremock/`. Then, in a second terminal:
 
 ```bash
+jbang run cf-explorer@garodriguezlp/cf-explorer
+# or, from a local clone:
 ./jbang cf-explorer
 ```
 
