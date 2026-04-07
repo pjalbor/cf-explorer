@@ -39,6 +39,7 @@ jbang run cf-explorer@garodriguezlp/cf-explorer
 | `--cf-username` | `CF_USERNAME` | `admin` | CF username |
 | `--cf-password` | `CF_PASSWORD` | `admin` | CF password |
 | `--cf-web-url` | `CF_WEB_URL` | `http://localhost:9090` | Apps Manager URL (used by Ctrl+O) |
+| `--env` | — | — | Profile name; reads `CF_*_<ENV>` vars first and scopes local files under `~/.cf-explorer/<env>/` |
 | `--fresh` | — | `false` | Bypass local cache and fetch fresh data from CF |
 | `--exclude-key` | — | `TRUSTSTORE` | Keys to exclude from the exported `.env` (repeatable) |
 | `--post-process` | — | `SPRING_APPLICATION_JSON=JSON` | Apply a named processor to a key (repeatable) |
@@ -46,6 +47,8 @@ jbang run cf-explorer@garodriguezlp/cf-explorer
 | `--keystore-password-var` | `KEYSTORE_PASSWORD_VAR` | `KEYSTORE_PASSWORD` | CF env var holding the base64-encoded keystore password |
 
 You can also drop a `CfExplorer.properties` file next to the script and PicoCLI will pick it up automatically.
+
+When `--env prod` is set, connection options resolve `CF_*_PROD` first, then fall back to the base `CF_*` variables.
 
 **Key bindings** (browsing screen):
 
@@ -59,7 +62,7 @@ You can also drop a `CfExplorer.properties` file next to the script and PicoCLI 
 | `Esc` | Clear the filter |
 | `Ctrl+C` / `q` | Quit |
 
-**Output** — selecting an app writes `<app-name>-<timestamp>.env` under `~/.cf-explorer/envs/`, ready to `source`. Pressing `Ctrl+K` writes the decoded JKS to `~/.cf-explorer/jks/` and displays each certificate's alias, subject DN, issuer, and expiry (color-coded by freshness).
+**Output** — selecting an app writes `<app-name>-<timestamp>.env` under `~/.cf-explorer/envs/`, or `~/.cf-explorer/<env>/envs/` when `--env` is set, ready to `source`. Pressing `Ctrl+K` writes the decoded JKS to `~/.cf-explorer/jks/`, or `~/.cf-explorer/<env>/jks/`, and displays each certificate's alias, subject DN, issuer, and expiry (color-coded by freshness).
 
 ## Try it locally with WireMock
 

@@ -68,7 +68,8 @@ final class LoadCatalogUseCase {
             config.cfApiUrl(),
             config.cfUsername(),
             config.cfPassword(),
-            config.fresh());
+            config.fresh(),
+            CachePaths.cacheDir(config.profileDir()));
     this.joiner = new CatalogJoiner();
   }
 
@@ -82,16 +83,18 @@ final class LoadCatalogUseCase {
 final class ExportEnvUseCase {
 
   private final FeignCfPlatformGateway gateway;
+  private final Path profileDir;
 
   ExportEnvUseCase(EnvConfig config) {
     this.gateway =
         new FeignCfPlatformGateway(
             config.uaaUrl(), config.cfApiUrl(), config.cfUsername(), config.cfPassword());
+    this.profileDir = config.profileDir();
   }
 
   EnvWriteResult execute(App app, EnvExportConfig config) throws IOException {
     var vars = gateway.fetchAppEnvVars(app.guid());
-    return EnvFileWriter.write(app, vars, config);
+    return EnvFileWriter.write(app, vars, config, CachePaths.envsDir(profileDir));
   }
 }
 
@@ -162,13 +165,12 @@ final class EnvFileWriter {
     throw new UnsupportedOperationException("This is a utility class and cannot be instantiated");
   }
 
-  static EnvWriteResult write(App app, Map<String, String> vars, EnvExportConfig config)
+  static EnvWriteResult write(App app, Map<String, String> vars, EnvExportConfig config, Path envsDir)
       throws IOException {
     var timestamp = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").format(LocalDateTime.now());
     var safeName = app.name().replaceAll("[^A-Za-z0-9._-]", "-").replaceAll("-+", "-");
-    var dir = CachePaths.defaultEnvsDir();
-    Files.createDirectories(dir);
-    var path = dir.resolve(safeName + "-" + timestamp + ".env");
+    Files.createDirectories(envsDir);
+    var path = envsDir.resolve(safeName + "-" + timestamp + ".env");
 
     var entries = vars != null ? vars : Map.<String, String>of();
     var actualExcluded = new ArrayList<String>();
@@ -227,6 +229,7 @@ final class ExportKeystoreUseCase {
   private final FeignCfPlatformGateway gateway;
   private final String keystoreVar;
   private final String keystorePasswordVar;
+  private final Path jksDir;
 
   ExportKeystoreUseCase(EnvConfig config) {
     this.gateway =
@@ -234,6 +237,7 @@ final class ExportKeystoreUseCase {
             config.uaaUrl(), config.cfApiUrl(), config.cfUsername(), config.cfPassword());
     this.keystoreVar = config.keystoreVar();
     this.keystorePasswordVar = config.keystorePasswordVar();
+    this.jksDir = CachePaths.jksDir(config.profileDir());
   }
 
   KeystoreInspectResult execute(App app) throws Exception {
@@ -267,7 +271,7 @@ final class ExportKeystoreUseCase {
           "Value of '" + keystorePasswordVar + "' is not valid Base64: " + ex.getMessage(), ex);
     }
 
-    var jksPath = KeystoreFileWriter.write(app, bytes, clearPassword);
+    var jksPath = KeystoreFileWriter.write(app, bytes, clearPassword, jksDir);
 
     try {
       var ks = KeyStore.getInstance("JKS");

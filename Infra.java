@@ -63,9 +63,10 @@ final class CachedCatalogProvider implements CatalogProvider {
   private final boolean refresh;
 
   CachedCatalogProvider(
-      String uaaUrl, String cfApiUrl, String username, String password, boolean refresh) {
+      String uaaUrl, String cfApiUrl, String username, String password, boolean refresh,
+      Path cacheDir) {
     this.liveProvider = new LiveCatalogProvider(uaaUrl, cfApiUrl, username, password);
-    this.cacheStore = new FileCatalogCacheStore(CachePaths.defaultCacheDir());
+    this.cacheStore = new FileCatalogCacheStore(cacheDir);
     this.refresh = refresh;
   }
 
@@ -323,16 +324,16 @@ final class CachePaths {
     throw new UnsupportedOperationException("This is a utility class and cannot be instantiated");
   }
 
-  static Path defaultCacheDir() {
-    return Path.of(System.getProperty("user.home", "."), ".cf-explorer", "cache");
+  static Path cacheDir(Path base) {
+    return base.resolve("cache");
   }
 
-  static Path defaultEnvsDir() {
-    return Path.of(System.getProperty("user.home", "."), ".cf-explorer", "envs");
+  static Path envsDir(Path base) {
+    return base.resolve("envs");
   }
 
-  static Path defaultJksDir() {
-    return Path.of(System.getProperty("user.home", "."), ".cf-explorer", "jks");
+  static Path jksDir(Path base) {
+    return base.resolve("jks");
   }
 }
 
@@ -345,14 +346,13 @@ final class KeystoreFileWriter {
     throw new UnsupportedOperationException("This is a utility class and cannot be instantiated");
   }
 
-  static Path write(App app, byte[] bytes, String clearPassword) throws IOException {
+  static Path write(App app, byte[] bytes, String clearPassword, Path jksDir) throws IOException {
     var timestamp =
         java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
             .format(java.time.LocalDateTime.now());
     var safeName = app.name().replaceAll("[^A-Za-z0-9._-]", "-").replaceAll("-+", "-");
-    var dir = CachePaths.defaultJksDir();
-    Files.createDirectories(dir);
-    var path = dir.resolve(safeName + "-pass_" + clearPassword + "-" + timestamp + ".jks");
+    Files.createDirectories(jksDir);
+    var path = jksDir.resolve(safeName + "-pass_" + clearPassword + "-" + timestamp + ".jks");
     Files.write(path, bytes);
     return path;
   }

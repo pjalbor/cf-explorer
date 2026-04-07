@@ -25,6 +25,7 @@ package cf.explorer;
 
 import dev.tamboui.toolkit.app.ToolkitApp;
 import dev.tamboui.toolkit.element.Element;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -41,39 +42,38 @@ import picocli.CommandLine.PropertiesDefaultProvider;
 public class CfExplorer implements Callable<Integer> {
 
   @Option(
+      names = "--env",
+      description =
+          "Profile name (letters, digits, hyphens, underscores). When set, connection params"
+              + " are read from CF_*_<ENV> env vars and local dirs are scoped to"
+              + " ~/.cf-explorer/<env>/.")
+  private String env;
+
+  @Option(
       names = "--uaa-url",
-      required = true,
-      description = "UAA base URL.",
-      defaultValue = "${CF_UAA_URL:-http://localhost:9090}")
+      description = "UAA base URL. Env: CF_UAA_URL[_<ENV>]. Default: http://localhost:9090")
   private String uaaUrl;
 
   @Option(
       names = "--cf-api-url",
-      required = true,
-      description = "CF API base URL.",
-      defaultValue = "${CF_API_URL:-http://localhost:9090}")
+      description = "CF API base URL. Env: CF_API_URL[_<ENV>]. Default: http://localhost:9090")
   private String cfApiUrl;
 
   @Option(
       names = "--cf-username",
-      required = true,
-      description = "CF username.",
-      defaultValue = "${CF_USERNAME:-admin}")
+      description = "CF username. Env: CF_USERNAME[_<ENV>]. Default: admin")
   private String cfUsername;
 
   @Option(
       names = "--cf-password",
-      required = true,
-      description = "CF password.",
-      defaultValue = "${CF_PASSWORD:-admin}")
+      description = "CF password. Env: CF_PASSWORD[_<ENV>]. Default: admin")
   private String cfPassword;
 
   @Option(
       names = "--cf-web-url",
-      required = true,
       description =
-          "CF Apps Manager base URL. Used by Ctrl+O to open the selected app in the browser.",
-      defaultValue = "${CF_WEB_URL:-http://localhost:9090}")
+          "CF Apps Manager base URL. Used by Ctrl+O to open the selected app in the browser."
+              + " Env: CF_WEB_URL[_<ENV>]. Default: http://localhost:9090")
   private String cfWebUrl;
 
   @Option(
@@ -114,20 +114,57 @@ public class CfExplorer implements Callable<Integer> {
 
   @Override
   public Integer call() throws Exception {
-    var config =
-        new EnvConfig(
-            uaaUrl,
-            cfApiUrl,
-            cfUsername,
-            cfPassword,
-            cfWebUrl,
-            fresh,
-            List.copyOf(excludeKeys),
-            Map.copyOf(postProcessors),
-            keystoreVar,
-            keystorePasswordVar);
-    new Launcher(config).run();
+    if (!validateEnv()) return 1;
+    new Launcher(buildConfig()).run();
     return 0;
+  }
+
+  private boolean validateEnv() {
+    if (env != null && !env.matches("[a-zA-Z0-9_-]+")) {
+      System.err.println(
+          "Error: --env value must contain only letters, digits, hyphens, or underscores.");
+      return false;
+    }
+    return true;
+  }
+
+  private EnvConfig buildConfig() {
+    var suffix = envSuffix();
+    return new EnvConfig(
+        resolve(uaaUrl, "CF_UAA_URL", suffix, "http://localhost:9090"),
+        resolve(cfApiUrl, "CF_API_URL", suffix, "http://localhost:9090"),
+        resolve(cfUsername, "CF_USERNAME", suffix, "admin"),
+        resolve(cfPassword, "CF_PASSWORD", suffix, "admin"),
+        resolve(cfWebUrl, "CF_WEB_URL", suffix, "http://localhost:9090"),
+        fresh,
+        List.copyOf(excludeKeys),
+        Map.copyOf(postProcessors),
+        keystoreVar,
+        keystorePasswordVar,
+        profileDir());
+  }
+
+  private String envSuffix() {
+    return env != null ? "_" + env.toUpperCase() : "";
+  }
+
+  private Path profileDir() {
+    var home = System.getProperty("user.home", ".");
+    return env != null
+        ? Path.of(home, ".cf-explorer", env)
+        : Path.of(home, ".cf-explorer");
+  }
+
+  private static String resolve(
+      String cliVal, String baseVar, String envSuffix, String fallback) {
+    if (cliVal != null && !cliVal.isBlank()) return cliVal;
+    if (!envSuffix.isEmpty()) {
+      var profileVal = System.getenv(baseVar + envSuffix);
+      if (profileVal != null && !profileVal.isBlank()) return profileVal;
+    }
+    var baseVal = System.getenv(baseVar);
+    if (baseVal != null && !baseVal.isBlank()) return baseVal;
+    return fallback;
   }
 }
 
@@ -141,7 +178,8 @@ record EnvConfig(
     List<String> excludeKeys,
     Map<String, Processor> postProcessors,
     String keystoreVar,
-    String keystorePasswordVar) {}
+    String keystorePasswordVar,
+    Path profileDir) {}
 
 final class Launcher extends ToolkitApp {
 
