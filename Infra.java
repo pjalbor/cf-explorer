@@ -11,6 +11,8 @@ import feign.RequestLine;
 import feign.form.FormEncoder;
 import feign.jackson.JacksonDecoder;
 import feign.jackson.JacksonEncoder;
+import java.awt.Toolkit;
+import java.awt.datatransfer.StringSelection;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -375,6 +377,29 @@ final class Jackson {
 
   static ObjectMapper mapper() {
     return MAPPER;
+  }
+}
+
+/**
+ * Copies text to the system clipboard.
+ *
+ * <p>Fails silently — if the clipboard is unavailable (e.g. headless environments) the method
+ * returns {@code false} without throwing.
+ */
+final class ClipboardWriter {
+
+  private ClipboardWriter() {
+    throw new UnsupportedOperationException("This is a utility class and cannot be instantiated");
+  }
+
+  static boolean copy(String text) {
+    try {
+      var selection = new StringSelection(text);
+      Toolkit.getDefaultToolkit().getSystemClipboard().setContents(selection, null);
+      return true;
+    } catch (Exception e) {
+      return false;
+    }
   }
 }
 

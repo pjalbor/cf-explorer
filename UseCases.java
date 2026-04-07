@@ -37,7 +37,7 @@ final class UseCases {
         new FeignCfPlatformGateway(
             config.uaaUrl(), config.cfApiUrl(), config.cfUsername(), config.cfPassword());
     this.loadCatalog = new LoadCatalogUseCase(config);
-    this.exportEnv = new ExportEnvUseCase(sharedGateway, config.profileDir());
+    this.exportEnv = new ExportEnvUseCase(sharedGateway, config.profileDir(), config.copyToClipboard());
     this.openInBrowser = new OpenAppInBrowserUseCase(config);
     this.exportKeystore = new ExportKeystoreUseCase(sharedGateway, config);
   }
@@ -88,15 +88,19 @@ final class ExportEnvUseCase {
 
   private final FeignCfPlatformGateway gateway;
   private final Path profileDir;
+  private final boolean copyToClipboard;
 
-  ExportEnvUseCase(FeignCfPlatformGateway gateway, Path profileDir) {
+  ExportEnvUseCase(FeignCfPlatformGateway gateway, Path profileDir, boolean copyToClipboard) {
     this.gateway = gateway;
     this.profileDir = profileDir;
+    this.copyToClipboard = copyToClipboard;
   }
 
   EnvWriteResult execute(App app, EnvExportConfig config) throws IOException {
     var vars = gateway.fetchAppEnvVars(app.guid());
-    return EnvFileWriter.write(app, vars, config, CachePaths.envsDir(profileDir));
+    var result = EnvFileWriter.write(app, vars, config, CachePaths.envsDir(profileDir));
+    var copied = copyToClipboard && ClipboardWriter.copy(result.path().toAbsolutePath().toString());
+    return new EnvWriteResult(result.path(), result.excludedKeys(), result.postProcessedKeys(), copied);
   }
 }
 
@@ -152,7 +156,8 @@ record EnvExportConfig(List<String> excludeKeys, Map<String, Processor> postProc
  * Carries the output file path and per-key accounting from a successful {@link EnvFileWriter}
  * write.
  */
-record EnvWriteResult(Path path, List<String> excludedKeys, List<String> postProcessedKeys) {}
+record EnvWriteResult(
+    Path path, List<String> excludedKeys, List<String> postProcessedKeys, boolean clipboardCopied) {}
 
 /**
  * Writes a sorted {@code .env} file from a map of CF app environment variables.
@@ -200,7 +205,7 @@ final class EnvFileWriter {
             .map(e -> formatEntry(e.getKey(), e.getValue(), config.postProcessors()))
             .collect(Collectors.joining("\n"));
     Files.writeString(path, content.isEmpty() ? "" : content + "\n");
-    return new EnvWriteResult(path, List.copyOf(actualExcluded), List.copyOf(actualPostProcessed));
+    return new EnvWriteResult(path, List.copyOf(actualExcluded), List.copyOf(actualPostProcessed), false);
   }
 
   private static String formatEntry(
@@ -239,12 +244,14 @@ final class ExportKeystoreUseCase {
   private final String keystoreVar;
   private final String keystorePasswordVar;
   private final Path jksDir;
+  private final boolean copyToClipboard;
 
   ExportKeystoreUseCase(FeignCfPlatformGateway gateway, EnvConfig config) {
     this.gateway = gateway;
     this.keystoreVar = config.keystoreVar();
     this.keystorePasswordVar = config.keystorePasswordVar();
     this.jksDir = CachePaths.jksDir(config.profileDir());
+    this.copyToClipboard = config.copyToClipboard();
   }
 
   KeystoreInspectResult execute(App app) throws Exception {
@@ -252,11 +259,12 @@ final class ExportKeystoreUseCase {
     var keystoreBytes = decodeBase64EnvVar(vars, keystoreVar, app.name());
     var clearPassword = decodeBase64EnvVarAsString(vars, keystorePasswordVar, app.name());
     var jksPath = KeystoreFileWriter.write(app, keystoreBytes, clearPassword, jksDir);
+    var copied = copyToClipboard && ClipboardWriter.copy(jksPath.toAbsolutePath().toString());
     try {
       var entries = inspectKeystore(keystoreBytes, clearPassword);
-      return KeystoreInspectResult.success(jksPath, entries);
+      return KeystoreInspectResult.success(jksPath, entries, copied);
     } catch (Exception ex) {
-      return KeystoreInspectResult.partial(jksPath, ex.getMessage());
+      return KeystoreInspectResult.partial(jksPath, ex.getMessage(), copied);
     }
   }
 
