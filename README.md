@@ -2,6 +2,10 @@
 
 An interactive terminal browser for Cloud Foundry. Navigate your orgs, spaces, and apps; press Enter on any app and it exports a `.env` file containing all of its environment variables, ready to `source`.
 
+## Demo
+
+![cf-explorer demo](docs/cf-explorer.gif)
+
 ## Usage
 
 Requires [jbang](https://www.jbang.dev/).
