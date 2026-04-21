@@ -117,7 +117,7 @@ final class Controller {
 
   void freshReload() {
     if (!(state instanceof AppState.Browsing b)) return;
-    state = b.toCatalogLoading();
+    state = AppState.CatalogLoading.initial();
     CompletableFuture.supplyAsync(() -> loadCatalogUseCase.executeFresh(buildCatalogLoadListener()))
         .thenAccept(apps -> dispatch.dispatch(() -> onCatalogLoaded(apps)))
         .exceptionally(
