@@ -203,10 +203,11 @@ final class View {
     }
 
     private static Element filterBar(AppState.Browsing s) {
+      if (s.isCommandMode()) return commandBar(s);
       if (!s.hasFilter()) {
         return panel(
                 row(
-                    text("  Type to filter...  ").dim(),
+                    text("  Type to filter or / for commands...  ").dim(),
                     text("[" + s.filteredApps().size() + " apps]").dim()))
             .rounded()
             .borderColor(Color.DARK_GRAY)
@@ -223,11 +224,35 @@ final class View {
           .title("Filter");
     }
 
+    private static Element commandBar(AppState.Browsing s) {
+      var input =
+          panel(row(text("> ").bold().cyan(), text(s.filterQuery()).cyan(), text("_").dim()))
+              .rounded()
+              .borderColor(Color.CYAN)
+              .title("Command");
+      var matches = s.matchingCommands();
+      if (matches.isEmpty()) return input;
+      var items = new ArrayList<Element>();
+      for (var cmd : matches) {
+        boolean isExact = cmd.text.equals(s.filterQuery());
+        items.add(
+            isExact
+                ? text("  \u25b6 " + cmd.text).cyan().bold()
+                : text("    " + cmd.text).dim());
+      }
+      var suggestions =
+          panel(column(items.toArray(new Element[0])))
+              .rounded()
+              .borderColor(Color.CYAN)
+              .title("Commands");
+      return column(suggestions, input);
+    }
+
     private static Element footer() {
       var hint =
           "\u2191\u2193 navigate  |  Enter export .env  |  Ctrl+O open in browser  |  Ctrl+K"
-              + " inspect keystore  |  Ctrl+F fresh reload  |  type to filter  |  Esc clear"
-              + "  |  Ctrl+C quit";
+              + " inspect keystore  |  Ctrl+F fresh reload  |  / commands  |  type to filter"
+              + "  |  Esc clear  |  Ctrl+C quit";
       return panel(text(hint).dim()).rounded().borderColor(Color.DARK_GRAY);
     }
 
@@ -593,10 +618,11 @@ final class KeyHandler {
         BindingSets.defaults().toBuilder()
             .bind(KeyTrigger.key(KeyCode.CHAR), BrowsingHandlers.APPEND_FILTER_CHARACTER)
             .rebind(KeyTrigger.key(KeyCode.ENTER), Actions.SELECT)
-            .rebind(KeyTrigger.ctrl('h'), Actions.DELETE_BACKWARD)
+            //.rebind(KeyTrigger.ctrl('h'), Actions.DELETE_BACKWARD)
             .bind(KeyTrigger.ctrl('o'), BrowsingHandlers.OPEN_IN_BROWSER)
             .bind(KeyTrigger.ctrl('k'), BrowsingHandlers.EXPORT_KEYSTORE)
             .bind(KeyTrigger.ctrl('f'), BrowsingHandlers.FRESH_RELOAD)
+            .bind(KeyTrigger.key(KeyCode.ESCAPE), Actions.CANCEL)
             .build();
 
     private final Controller controller;
@@ -631,8 +657,13 @@ final class KeyHandler {
     }
 
     private void handleSelectCurrentApp(Event event) {
-      var app = selectedApp();
-      if (app != null) controller.selectApp(app);
+      var b = browsing();
+      if (b.isCommandMode()) {
+        controller.executeCommand(b.filterQuery(), b.selectedApp());
+      } else {
+        var app = b.selectedApp();
+        if (app != null) controller.selectApp(app);
+      }
     }
 
     private void handleOpenCurrentAppInBrowser(Event event) {
@@ -674,7 +705,10 @@ final class KeyHandler {
     }
 
     ActionHandler build() {
-      return new ActionHandler(BindingSets.defaults())
+      return new ActionHandler(
+              BindingSets.defaults().toBuilder()
+                  .rebind(KeyTrigger.ctrl('b'), Actions.CANCEL)
+                  .build())
           .on(Actions.CANCEL, this::handleReturnToBrowsing);
     }
 

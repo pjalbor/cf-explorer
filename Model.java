@@ -142,6 +142,41 @@ final class TokenFilter {
   }
 }
 
+// --- Slash Commands ---
+
+enum Command {
+  SELECT_ENVIRONMENT("/select_environment"),
+  OPEN_IN_BROWSER("/open_in_browser"),
+  EXPORT_KEYSTORE("/export_keystore"),
+  FRESH_RELOAD("/fresh_reload");
+
+  final String text;
+
+  Command(String text) {
+    this.text = text;
+  }
+
+  static List<Command> matching(String prefix) {
+    var p = prefix.toLowerCase(Locale.ROOT);
+    return Arrays.stream(values()).filter(c -> c.text.startsWith(p)).toList();
+  }
+
+  static Command resolve(String input) {
+    var lower = input.toLowerCase(Locale.ROOT);
+    for (var cmd : values()) {
+      if (cmd.text.equals(lower)) return cmd;
+    }
+    Command found = null;
+    for (var cmd : values()) {
+      if (cmd.text.startsWith(lower)) {
+        if (found != null) return null;
+        found = cmd;
+      }
+    }
+    return found;
+  }
+}
+
 // --- App State ---
 
 /** Immutable snapshot of org/space/app totals displayed in the title bar on every screen. */
@@ -245,6 +280,7 @@ sealed interface AppState
     }
 
     Browsing appendFilter(char c) {
+      if (c == '/' && !filterQuery.startsWith("/")) return withFilter("/");
       return withFilter(filterQuery + c);
     }
 
@@ -267,11 +303,23 @@ sealed interface AppState
       return !filterQuery.isEmpty();
     }
 
+    boolean isCommandMode() {
+      return filterQuery.startsWith("/");
+    }
+
+    List<Command> matchingCommands() {
+      if (!isCommandMode()) return List.of();
+      return Command.matching(filterQuery);
+    }
+
     private Browsing withIndex(int i) {
       return new Browsing(header, allApps, filteredApps, i, filterQuery, filterTokens);
     }
 
     private Browsing withFilter(String q) {
+      if (q.startsWith("/")) {
+        return new Browsing(header, allApps, filteredApps, selectedIndex, q, List.of());
+      }
       var tokens = TokenFilter.tokenize(q);
       var filtered = TokenFilter.apply(allApps, q);
       return new Browsing(

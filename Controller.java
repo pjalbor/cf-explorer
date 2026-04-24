@@ -115,6 +115,18 @@ final class Controller {
             });
   }
 
+  void executeCommand(String commandText, App app) {
+    if (!(state instanceof AppState.Browsing b)) return;
+    var cmd = Command.resolve(commandText);
+    if (cmd == null) return;
+    switch (cmd) {
+      case SELECT_ENVIRONMENT -> { state = b.clearFilter(); if (app != null) selectApp(app); }
+      case OPEN_IN_BROWSER -> { state = b.clearFilter(); if (app != null) openInBrowser(app); }
+      case EXPORT_KEYSTORE -> { state = b.clearFilter(); if (app != null) exportKeystore(app); }
+      case FRESH_RELOAD -> freshReload();
+    }
+  }
+
   void freshReload() {
     if (!(state instanceof AppState.Browsing b)) return;
     state = AppState.CatalogLoading.initial();
