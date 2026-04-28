@@ -592,14 +592,38 @@ final class KeyHandler {
 
   EventResult handle(KeyEvent event) {
     var state = controller.state();
+
+    // Robust fallback for Escape (including the UNKNOWN/0 pattern seen in your Git Bash logs)
+    if (event.isKey(KeyCode.ESCAPE)
+        || event.isChar('\u001b')
+        || event.isChar((char) 27)
+        || (event.code() == KeyCode.UNKNOWN && event.character() == 0)) {
+      if (state instanceof AppState.Browsing) {
+        controller.clearFilter();
+        return EventResult.HANDLED;
+      }
+      if (state instanceof AppState.ExportDone
+          || state instanceof AppState.ExportFailed
+          || state instanceof AppState.KeystoreDone
+          || state instanceof AppState.KeystoreFailed
+          || state instanceof AppState.CatalogLoadFailed) {
+        controller.returnToBrowsing();
+        return EventResult.HANDLED;
+      }
+    }
+
     if (state instanceof AppState.CatalogLoading
         || state instanceof AppState.EnvExporting
         || state instanceof AppState.KeystoreExporting) return EventResult.HANDLED;
+
+    // Try standard dispatch for other keys (includes bindings like / for commands)
     if (state instanceof AppState.Browsing) return dispatch(event, browsingHandler);
     if (state instanceof AppState.ExportDone || state instanceof AppState.ExportFailed)
       return dispatch(event, exportResultHandler);
     if (state instanceof AppState.KeystoreDone || state instanceof AppState.KeystoreFailed)
       return dispatch(event, exportResultHandler);
+    if (state instanceof AppState.CatalogLoadFailed) return dispatch(event, exportResultHandler);
+
     return EventResult.UNHANDLED;
   }
 
@@ -616,13 +640,13 @@ final class KeyHandler {
 
     private static final Bindings BINDINGS =
         BindingSets.defaults().toBuilder()
+            .rebind(KeyTrigger.key(KeyCode.ESCAPE), Actions.CANCEL)
             .bind(KeyTrigger.key(KeyCode.CHAR), BrowsingHandlers.APPEND_FILTER_CHARACTER)
             .rebind(KeyTrigger.key(KeyCode.ENTER), Actions.SELECT)
             //.rebind(KeyTrigger.ctrl('h'), Actions.DELETE_BACKWARD)
             .bind(KeyTrigger.ctrl('o'), BrowsingHandlers.OPEN_IN_BROWSER)
             .bind(KeyTrigger.ctrl('k'), BrowsingHandlers.EXPORT_KEYSTORE)
             .bind(KeyTrigger.ctrl('f'), BrowsingHandlers.FRESH_RELOAD)
-            .bind(KeyTrigger.key(KeyCode.ESCAPE), Actions.CANCEL)
             .build();
 
     private final Controller controller;
@@ -707,6 +731,7 @@ final class KeyHandler {
     ActionHandler build() {
       return new ActionHandler(
               BindingSets.defaults().toBuilder()
+                  .rebind(KeyTrigger.key(KeyCode.ESCAPE), Actions.CANCEL)
                   .rebind(KeyTrigger.ctrl('b'), Actions.CANCEL)
                   .build())
           .on(Actions.CANCEL, this::handleReturnToBrowsing);
