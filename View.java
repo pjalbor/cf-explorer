@@ -612,6 +612,16 @@ final class KeyHandler {
       }
     }
 
+    // Robust fallback for Backspace (some terminals send char 8 or 127, or the DELETE key, or Ctrl+H)
+    if (event.isKey(KeyCode.BACKSPACE) || event.isKey(KeyCode.DELETE)
+        || event.isChar((char) 8) || event.isChar((char) 127)
+        || (event.isChar('h') && event.modifiers().ctrl())) {
+      if (state instanceof AppState.Browsing) {
+        controller.backspaceFilter();
+        return EventResult.HANDLED;
+      }
+    }
+
     if (state instanceof AppState.CatalogLoading
         || state instanceof AppState.EnvExporting
         || state instanceof AppState.KeystoreExporting) return EventResult.HANDLED;
